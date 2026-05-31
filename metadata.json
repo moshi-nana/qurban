@@ -1,0 +1,6 @@
+{
+  "name": "Qurban Scanner",
+  "description": "Aplikasi Pemindai Kupon Qurban Offline-First dengan sinkronisasi lokal dan server.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
