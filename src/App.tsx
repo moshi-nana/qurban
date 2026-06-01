@@ -2,16 +2,44 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Scanner from './components/Scanner';
 import AdminPanel from './components/AdminPanel';
 import StatusBanner from './components/StatusBanner';
+import LoginPage from './components/LoginPage';
 import { getSyncQueue, removeKuponFromQueue, initDB, getKuponLokalAll } from './lib/indexedDB';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
-import { Shield, ShieldAlert, X } from 'lucide-react';
+import { Shield, ShieldAlert, LogOut } from 'lucide-react';
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [queueCount, setQueueCount] = useState(0);
   const [statistik, setStatistik] = useState({ total: 0, klaim: 0 });
   const [showAdmin, setShowAdmin] = useState(false);
   const [logoError, setLogoError] = useState(false);
+
+  // ── Auth gate: restore existing Supabase session on mount ──
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      // No Supabase: skip session check, show login PIN page directly
+      setAuthChecked(true);
+      return;
+    }
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session?.user) setCurrentUser(data.session.user);
+      setAuthChecked(true);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user ?? null);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    if (supabase && isSupabaseConfigured) {
+      await supabase.auth.signOut();
+    }
+    setCurrentUser(null);
+    setShowAdmin(false);
+  };
 
   const eksekusiKalkulasiMorfologiData = useCallback(async () => {
     try {
@@ -85,6 +113,23 @@ export default function App() {
     };
   }, [sinkronisasiKeServerPusat, eksekusiKalkulasiMorfologiData]);
 
+  // ── Auth gate: not yet checked ──
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <svg className="animate-spin" width="32" height="32" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="#F26522" strokeWidth="3" strokeOpacity="0.2"/>
+          <path d="M12 2a10 10 0 0110 10" stroke="#F26522" strokeWidth="3" strokeLinecap="round"/>
+        </svg>
+      </div>
+    );
+  }
+
+  // ── Auth gate: not logged in ──
+  if (!currentUser) {
+    return <LoginPage onLoginSuccess={(user) => setCurrentUser(user)} />;
+  }
+
   return (
     <div id="app-root-container" className="min-h-screen bg-slate-50 text-slate-800 flex flex-col justify-between selection:bg-[#F26522] selection:text-white">
       <div>
@@ -125,8 +170,8 @@ export default function App() {
             </p>
           </div>
 
-          {/* Right: Toggle Button */}
-          <div className="z-10 shrink-0">
+          {/* Right: Toggle + Logout Buttons */}
+          <div className="z-10 shrink-0 flex items-center gap-2">
             <button 
               id="toggle-view-mode"
               onClick={() => setShowAdmin(!showAdmin)}
@@ -143,6 +188,14 @@ export default function App() {
                   <span>PANEL ADMIN</span>
                 </>
               )}
+            </button>
+            <button
+              id="logout-button"
+              onClick={handleLogout}
+              title="Keluar"
+              className="flex items-center justify-center border border-gray-200 hover:border-red-300 hover:bg-red-50 bg-white p-1.5 sm:p-2 rounded-xl transition-all shadow-sm group"
+            >
+              <LogOut size={14} className="text-gray-400 group-hover:text-red-500 transition-colors" />
             </button>
           </div>
         </header>
