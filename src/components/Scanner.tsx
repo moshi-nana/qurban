@@ -231,7 +231,7 @@ export default function Scanner({ triggerSyncCheck }: ScannerProps) {
                 type="text"
                 value={manualCode}
                 onChange={(e) => setManualCode(e.target.value)}
-                placeholder="CONTOH: RZ-WNSR-00000001"
+                placeholder="CONTOH: QB-RZ-0A7U9E"
                 className="flex-1 bg-white border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[#F26522] text-slate-800 uppercase font-mono tracking-wider shadow-sm"
               />
               <button

@@ -15,7 +15,6 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
-  const [logoError, setLogoError] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [shake, setShake] = useState(false);
   const pinRefs = [
@@ -124,30 +123,8 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
           ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}
         `}
       >
-        {/* Logo & Title */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="mb-4 relative">
-            {!logoError ? (
-              <img
-                src="/logo.png"
-                alt="Logo Qurban"
-                className="w-20 h-20 object-contain drop-shadow-md"
-                onError={() => setLogoError(true)}
-              />
-            ) : (
-              <FallbackLogo />
-            )}
-            {/* Online / offline badge */}
-            <span
-              className={`absolute -bottom-1 -right-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full border ${
-                isOfflineMode
-                  ? 'bg-amber-50 text-amber-600 border-amber-300'
-                  : 'bg-emerald-50 text-emerald-600 border-emerald-300'
-              }`}
-            >
-              {isOfflineMode ? 'Lokal' : 'Online'}
-            </span>
-          </div>
+        {/* Title above card */}
+        <div className="flex flex-col items-center mb-6">
           <h1
             className="text-2xl font-black tracking-widest uppercase text-slate-900"
             style={{ letterSpacing: '0.18em' }}
@@ -169,6 +146,25 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
             className="h-1 w-full"
             style={{ background: 'linear-gradient(90deg, #F26522 0%, #f5924a 50%, #F26522 100%)' }}
           />
+
+          {/* Full-width logo banner */}
+          <div className="flex flex-col items-center justify-center py-6 px-8 border-b border-gray-100 bg-gradient-to-b from-white to-gray-50">
+            <img
+              src="/logo.png"
+              alt="Logo Qurban"
+              className="h-24 object-contain drop-shadow-sm"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+            <span
+              className={`mt-3 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${
+                isOfflineMode
+                  ? 'bg-amber-50 text-amber-600 border-amber-300'
+                  : 'bg-emerald-50 text-emerald-600 border-emerald-300'
+              }`}
+            >
+              {isOfflineMode ? '🔒 Mode Lokal' : '🌐 Mode Online'}
+            </span>
+          </div>
 
           <div className="p-8">
             {isOfflineMode ? (
@@ -419,17 +415,6 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   );
 }
 
-// ── Sub-components ──
-
-function FallbackLogo() {
-  return (
-    <svg viewBox="0 0 100 100" className="w-20 h-20 drop-shadow-md" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M50 85C15 56 7 40 7 25C7 13.5 16 5 27 5C33.5 5 40 8.5 44 14C45 15.3 47 17 50 17C53 17 55 15.3 56 14C60 8.5 66.5 5 73 5C84 5 93 13.5 93 25C93 40 85 56 50 85Z" fill="#F26522"/>
-      <path d="M50 28L25 48V67H75V48L50 28Z" stroke="white" strokeWidth="6" strokeLinejoin="round" strokeLinecap="round" fill="none" />
-      <path d="M46 67V56C46 53.8 47.8 52 50 52C52.2 52 54 53.8 54 56V67" stroke="white" strokeWidth="6" strokeLinejoin="round" strokeLinecap="round" fill="white" />
-    </svg>
-  );
-}
 
 function BackgroundOrnament() {
   return (

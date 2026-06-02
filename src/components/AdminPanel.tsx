@@ -200,28 +200,30 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
     setStatusText('Membuat kode kupon QR qurban...');
 
     try {
+      const CHARSET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      const generateKodeQB = (existingCodes: Set<string>): string => {
+        let code: string;
+        do {
+          let suffix = '';
+          for (let c = 0; c < 6; c++) {
+            suffix += CHARSET[Math.floor(Math.random() * CHARSET.length)];
+          }
+          code = `QB-RZ-${suffix}`;
+        } while (existingCodes.has(code));
+        return code;
+      };
+
       const payload: Kupon[] = [];
       const dataCsv = [["No", "Kode_QR", "Status_Klaim"]];
-      
-      let startSeq = 1;
-      const rzWnsrRegex = /^RZ-WNSR-(\d+)$/;
-      if (coupons.length > 0) {
-        let maxNum = 0;
-        coupons.forEach(c => {
-          const match = c.kode_qr.match(rzWnsrRegex);
-          if (match) {
-            const num = parseInt(match[1], 10);
-            if (num > maxNum) {
-              maxNum = num;
-            }
-          }
-        });
-        startSeq = maxNum + 1;
-      }
+
+      // Build set of all existing codes to guarantee no collision
+      const existingCodes = new Set<string>(coupons.map(c => c.kode_qr));
+      const generatedThisBatch = new Set<string>();
 
       for (let i = 0; i < jumlahKupon; i++) {
-        const seqNum = startSeq + i;
-        const formattedCode = `RZ-WNSR-${seqNum.toString().padStart(8, '0')}`;
+        const allUsed = new Set([...existingCodes, ...generatedThisBatch]);
+        const formattedCode = generateKodeQB(allUsed);
+        generatedThisBatch.add(formattedCode);
         payload.push({
           kode_qr: formattedCode,
           status_klaim: false,
