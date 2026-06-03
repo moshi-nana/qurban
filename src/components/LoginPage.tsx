@@ -5,7 +5,7 @@ interface LoginPageProps {
   onLoginSuccess: (user: any) => void;
 }
 
-const OFFLINE_PIN = '1234'; // fallback PIN when Supabase is not configured
+const OFFLINE_PIN = import.meta.env.VITE_OFFLINE_PIN || '';
 
 export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [mode, setMode] = useState<'login' | 'forgot'>('login');
