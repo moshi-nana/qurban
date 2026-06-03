@@ -250,7 +250,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                       onChange={(e) => { setEmail(e.target.value); setError(''); }}
                       placeholder="nama@email.com"
                       required
-                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-sm font-medium outline-none transition-all duration-200 focus:border-[#F26522] focus:bg-white placeholder:text-gray-300"
+                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-slate-900 text-sm font-medium outline-none transition-all duration-200 focus:border-[#F26522] focus:bg-white placeholder:text-gray-300"
                     />
                   </div>
 
@@ -264,7 +264,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                       onChange={(e) => { setPassword(e.target.value); setError(''); }}
                       placeholder="••••••••"
                       required
-                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-sm font-medium outline-none transition-all duration-200 focus:border-[#F26522] focus:bg-white placeholder:text-gray-300"
+                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-slate-900 text-sm font-medium outline-none transition-all duration-200 focus:border-[#F26522] focus:bg-white placeholder:text-gray-300"
                     />
                   </div>
                 </div>
@@ -333,7 +333,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                     onChange={(e) => { setEmail(e.target.value); setError(''); setInfo(''); }}
                     placeholder="nama@email.com"
                     required
-                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-sm font-medium outline-none transition-all duration-200 focus:border-[#F26522] focus:bg-white placeholder:text-gray-300"
+                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-slate-900 text-sm font-medium outline-none transition-all duration-200 focus:border-[#F26522] focus:bg-white placeholder:text-gray-300"
                     autoFocus
                   />
                 </div>
