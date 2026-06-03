@@ -707,7 +707,7 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
           <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
             <button
               id="btn-pull-cloud"
-              disabled={loading || pulling || !isSupabaseConfigured || !adminPrivilege}
+              disabled={loading || pulling || !isSupabaseConfigured}
               onClick={downloadSistemLokal}
               title={
                 !isSupabaseConfigured 
