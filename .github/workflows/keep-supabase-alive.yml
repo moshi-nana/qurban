@@ -1,0 +1,63 @@
+name: Keep Supabase Alive
+
+on:
+  schedule:
+    # Setiap Senin jam 07:00 WIB (00:00 UTC)
+    - cron: '0 0 * * 1'
+    # Setiap Kamis jam 07:00 WIB (00:00 UTC)
+    - cron: '0 0 * * 4'
+  # Bisa dijalankan manual dari GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  ping-supabase:
+    name: Ping Supabase REST API
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Ping Supabase Health Endpoint
+        run: |
+          echo "🕌 Pinging Supabase agar tidak di-pause..."
+          
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.VITE_SUPABASE_URL }}/rest/v1/" \
+            -H "apikey: ${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.VITE_SUPABASE_ANON_KEY }}")
+          
+          echo "HTTP Status: $RESPONSE"
+          
+          if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 500 ]; then
+            echo "✅ Supabase aktif dan merespons (HTTP $RESPONSE)"
+          else
+            echo "❌ Supabase tidak merespons dengan baik (HTTP $RESPONSE)"
+            exit 1
+          fi
+
+      - name: Query tabel qurban (aktivitas nyata)
+        run: |
+          echo "📋 Melakukan query ringan ke tabel..."
+          
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.VITE_SUPABASE_URL }}/rest/v1/vouchers?limit=1" \
+            -H "apikey: ${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
+            -H "Range: 0-0")
+          
+          echo "HTTP Status: $RESPONSE"
+          
+          if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 500 ]; then
+            echo "✅ Query berhasil (HTTP $RESPONSE)"
+          else
+            echo "⚠️ Query gagal tapi koneksi masih oke, lanjut..."
+          fi
+
+      - name: Laporan status
+        if: always()
+        run: |
+          echo "================================================"
+          echo "🗓️  Tanggal run  : $(date '+%A, %d %B %Y %H:%M WIB')"
+          echo "🔗 Supabase URL : ${{ secrets.VITE_SUPABASE_URL }}"
+          echo "📌 Tujuan       : Mencegah auto-pause Supabase free tier"
+          echo "⏰ Jadwal       : Setiap Senin & Kamis 07:00 WIB"
+          echo "================================================"
