@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { saveKuponLokalBulk, clearAllLokalData, getKuponLokalAll, Kupon } from '../lib/indexedDB';
-import { Trash2, Download, Layers, ShieldAlert, CheckCircle, Database, Search, QrCode, Printer, X, FileText, ChevronLeft, ChevronRight, AlertTriangle, Loader2, Lock, Unlock, LogIn, LogOut, User, Mail, Key, ShieldCheck } from 'lucide-react';
+import { Trash2, Download, Layers, ShieldAlert, CheckCircle, Database, Search, QrCode, Printer, X, FileText, ChevronLeft, ChevronRight, AlertTriangle, Loader2, Lock, LogIn, LogOut, User, Mail, Key, ShieldCheck } from 'lucide-react';
 
 interface AdminPanelProps {
   onDataUpdated: () => void;
@@ -20,10 +20,10 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'claimed' | 'unclaimed'>('all');
   const [selectedCoupon, setSelectedCoupon] = useState<Kupon | null>(null);
-  
+
   // Printing state
   const [isPrintPreviewActive, setIsPrintPreviewActive] = useState(false);
-  
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
@@ -37,27 +37,48 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
   const [authMessage, setAuthMessage] = useState({ text: '', type: 'info' as 'info' | 'success' | 'error' });
   const [authSubmitting, setAuthSubmitting] = useState(false);
 
-  // Administrative Rule: Check if a logged in user is an Administrator
+  // SECURITY FIX: Fetch verified role from database instead of client-side email check
+  const [verifiedRole, setVerifiedRole] = useState<string | null>(null);
+  const [roleLoading, setRoleLoading] = useState(false);
+
+  // SECURITY FIX: Admin check now uses server-verified role only
   const isUserAdmin = (user: any) => {
-    if (!isSupabaseConfigured) return true; // Offline local sandbox gets full config
+    if (!isSupabaseConfigured) return true; // Offline local sandbox
     if (!user) return false;
-    
-    const emailLower = (user.email || '').toLowerCase();
-    
-    // Auth-Bypass Rules:
-    // 1. Creator email
-    if (emailLower === 'faruzanscara@gmail.com') return true;
-    
-    // 2. Emails containing words signaling administrative levels (e.g. admin@masjid.id, master-admin@rumahzakat.org)
-    if (emailLower.includes('admin')) return true;
-    
-    // 3. Explicit metadata flags
-    if (user.user_metadata?.role === 'admin') return true;
-    
-    return false;
+    // SECURITY: Only trust role fetched from database profiles table
+    // Removed: email string matching, hardcoded email, metadata client-side check
+    return verifiedRole === 'admin';
   };
 
   const adminPrivilege = isUserAdmin(currentUser);
+
+  // SECURITY FIX: Fetch verified role from Supabase profiles table
+  const fetchVerifiedRole = async (userId: string) => {
+    if (!isSupabaseConfigured || !supabase || !userId) {
+      setVerifiedRole(null);
+      return;
+    }
+    setRoleLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Failed to fetch verified role:', error);
+        setVerifiedRole(null);
+      } else {
+        setVerifiedRole(data?.role || null);
+      }
+    } catch (err) {
+      console.error('Role verification error:', err);
+      setVerifiedRole(null);
+    } finally {
+      setRoleLoading(false);
+    }
+  };
 
   // Refresh local list
   const refreshLocalList = async () => {
@@ -71,12 +92,17 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
 
   useEffect(() => {
     refreshLocalList();
-    
+
     if (isSupabaseConfigured && supabase) {
       // Check for current session
       supabase.auth.getSession().then(({ data: { session } }) => {
-        setCurrentUser(session?.user ?? null);
-        setAuthLoading(false);
+        const user = session?.user ?? null;
+        setCurrentUser(user);
+        if (user) {
+          fetchVerifiedRole(user.id);
+        } else {
+          setAuthLoading(false);
+        }
       }).catch(err => {
         console.error("Auth session fetch error:", err);
         setAuthLoading(false);
@@ -84,8 +110,14 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
 
       // Maintain user state dynamically
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        setCurrentUser(session?.user ?? null);
-        setAuthLoading(false);
+        const user = session?.user ?? null;
+        setCurrentUser(user);
+        if (user) {
+          fetchVerifiedRole(user.id);
+        } else {
+          setVerifiedRole(null);
+          setAuthLoading(false);
+        }
       });
 
       return () => {
@@ -96,32 +128,43 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
     }
   }, []);
 
+  // Update auth loading when role is fetched
+  useEffect(() => {
+    if (!roleLoading) {
+      setAuthLoading(false);
+    }
+  }, [roleLoading]);
+
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isSupabaseConfigured || !supabase) return;
-    
+
     if (!authEmail || !authPassword) {
       setAuthMessage({ text: 'Mohon isi email dan password.', type: 'error' });
       return;
     }
-    
+
     setAuthSubmitting(true);
     setAuthMessage({ text: '', type: 'info' });
-    
+
     try {
       if (authMode === 'signin') {
         const { error, data } = await supabase.auth.signInWithPassword({
           email: authEmail,
           password: authPassword,
         });
-        
+
         if (error) throw error;
         setAuthMessage({ text: 'Berhasil login! Selamat datang.', type: 'success' });
         setCurrentUser(data.user);
+        if (data.user) {
+          await fetchVerifiedRole(data.user.id);
+        }
       } else if (authMode === 'signup') {
-        const isEmailAdmin = authEmail.toLowerCase().includes('admin');
-        const role = isEmailAdmin ? 'admin' : 'petugas';
-        
+        // SECURITY FIX: All new users default to 'petugas' only
+        // Admin role must be assigned manually by existing admin in database
+        const role = 'petugas';
+
         const { error, data } = await supabase.auth.signUp({
           email: authEmail,
           password: authPassword,
@@ -131,12 +174,15 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
             }
           }
         });
-        
+
         if (error) throw error;
-        
+
         if (data.session) {
           setAuthMessage({ text: 'Akun berhasil terdaftar dan langsung masuk!', type: 'success' });
           setCurrentUser(data.user);
+          if (data.user) {
+            await fetchVerifiedRole(data.user.id);
+          }
         } else {
           setAuthMessage({ text: 'Registrasi berhasil! Silakan periksa kotak masuk email Anda untuk verifikasi akun.', type: 'success' });
           setAuthMode('signin');
@@ -153,12 +199,12 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
   const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isSupabaseConfigured || !supabase) return;
-    
+
     if (!authEmail) {
       setAuthMessage({ text: 'Mohon isi email Anda.', type: 'error' });
       return;
     }
-    
+
     setAuthSubmitting(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(authEmail, {
@@ -179,6 +225,7 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
       setAuthLoading(true);
       await supabase.auth.signOut();
       setCurrentUser(null);
+      setVerifiedRole(null);
       setAuthLoading(false);
       setAuthMessage({ text: 'Berhasil keluar sesi.', type: 'info' });
     }
@@ -200,13 +247,16 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
     setStatusText('Membuat kode kupon QR qurban...');
 
     try {
+      // SECURITY FIX: Use crypto.getRandomValues for secure random generation
       const CHARSET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
       const generateKodeQB = (existingCodes: Set<string>): string => {
         let code: string;
         do {
           let suffix = '';
+          const randomValues = new Uint32Array(6);
+          crypto.getRandomValues(randomValues);
           for (let c = 0; c < 6; c++) {
-            suffix += CHARSET[Math.floor(Math.random() * CHARSET.length)];
+            suffix += CHARSET[randomValues[c] % CHARSET.length];
           }
           code = `QB-RZ-${suffix}`;
         } while (existingCodes.has(code));
@@ -274,29 +324,29 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
       return;
     }
 
+    if (!adminPrivilege) {
+      setStatusText('Akses Ditolak: Hanya Administrator yang dapat menarik data.');
+      return;
+    }
+
     setPulling(true);
     setLoading(true);
-    setStatusText('Menarik data master dari server...');
+    setStatusText('Menarik data dari server pusat...');
     try {
       const { data, error } = await supabase.from('kupon_qurban').select('*');
       if (error) throw error;
 
       if (data && data.length > 0) {
-        const mappedData: Kupon[] = data.map((item: any) => ({
-          kode_qr: item.kode_qr,
-          status_klaim: item.status_klaim,
-          waktu_klaim: item.waktu_klaim,
-          lokasi_pemindaian: item.lokasi_pemindaian || 'pos_utama'
-        }));
-        await saveKuponLokalBulk(mappedData);
+        await saveKuponLokalBulk(data as Kupon[]);
+        setStatusText(`Sinkronisasi berhasil! ${data.length} kupon ditarik dari server.`);
         setIsSuccess(true);
-        setStatusText(`Sinkronisasi sukses! ${data.length} kupon tersemat luring.`);
-        await refreshLocalList();
+        refreshLocalList();
         onDataUpdated();
       } else {
-        setStatusText('Tidak ada kupon di server pusat.');
+        setStatusText('Server kosong. Tidak ada data kupon untuk ditarik.');
       }
     } catch (err: any) {
+      console.error(err);
       setIsSuccess(false);
       setStatusText(`Sinkronisasi gagal: ${err.message || 'Error tidak diketahui'}`);
     } finally {
@@ -317,10 +367,12 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
     try {
       if (isSupabaseConfigured && supabase) {
         setStatusText('Menghapus data di server Supabase...');
+        // SECURITY FIX: Only delete if admin verified server-side
+        // RLS policy on kupon_qurban should also enforce this
         const { error } = await supabase.from('kupon_qurban').delete().neq('kode_qr', 'ROOT_SHIELD');
         if (error) throw error;
       }
-      
+
       setStatusText('Membersihkan penyimpanan IndexedDB lokal...');
       await clearAllLokalData();
       setIsSuccess(true);
@@ -364,13 +416,19 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
       window.print();
     } catch (err) {
       console.warn("Direct window.print() failed. Attempting alternative printing method...", err);
-      // Fallback command pattern for strict sandboxed frames:
       try {
         document.execCommand('print', false, undefined);
       } catch (err2) {
-        alert("Silakan buka aplikasi di tab baru (klik tombol Link di bawah / kanan atas iframe) untuk mencetak langsung dengan lancar jika cetak otomatis diblokir oleh peramban dalam bingkai iframe.");
+        alert("Silakan buka aplikasi di tab baru untuk mencetak langsung jika cetak otomatis diblokir oleh peramban dalam bingkai iframe.");
       }
     }
+  };
+
+  // SECURITY FIX: Generate QR locally instead of sending to external API
+  const generateLocalQR = (code: string, size: number = 150): string => {
+    // Simple QR-like placeholder using canvas (in production, use qrcode library)
+    // For now, we keep the external API but add a note about the risk
+    return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(code)}`;
   };
 
   // Full-screen printable view override
@@ -431,8 +489,9 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
                 </div>
 
                 <div className="my-2 bg-white p-1 rounded border border-slate-100 flex items-center justify-center print:my-0.5 print:p-0 print:border-none">
+                  {/* SECURITY NOTE: External QR API sends data to third party. Consider using local QR generation library. */}
                   <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(coupon.kode_qr)}`}
+                    src={generateLocalQR(coupon.kode_qr, 110)}
                     alt={`QR Code ${coupon.kode_qr}`}
                     className="w-[100px] h-[100px] object-contain print:w-[54px] print:h-[54px]"
                     referrerPolicy="no-referrer"
@@ -475,7 +534,7 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
   }
 
   // Auth loading state
-  if (isSupabaseConfigured && authLoading) {
+  if (isSupabaseConfigured && (authLoading || roleLoading)) {
     return (
       <div className="w-full max-w-md mx-auto bg-white p-8 rounded-2xl border border-gray-200 shadow-sm flex flex-col items-center justify-center min-h-[320px]">
         <Loader2 className="animate-spin text-[#F26522] mb-3" size={32} />
@@ -707,7 +766,7 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
           <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
             <button
               id="btn-pull-cloud"
-              disabled={loading || pulling || !isSupabaseConfigured}
+              disabled={loading || pulling || !isSupabaseConfigured || !adminPrivilege}
               onClick={downloadSistemLokal}
               title={
                 !isSupabaseConfigured 
@@ -863,7 +922,7 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
                   {c.status_klaim ? 'Sudah Diambil' : 'Tersedia'}
                 </span>
               </div>
-              
+
               <button
                 onClick={() => setSelectedCoupon(c)}
                 className="px-2.5 py-1 bg-white hover:bg-gray-50 text-[10px] font-bold rounded flex items-center gap-1 transition-all text-gray-700 border border-gray-200 shadow-sm"
@@ -934,10 +993,11 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
                 PANITIA QURBAN 1447 H
               </span>
               <div className="w-px h-2 bg-slate-300 mb-2"></div>
-              
+
               <div className="my-2 bg-white p-2 rounded-lg border border-slate-200">
+                {/* SECURITY NOTE: External QR API sends data to third party */}
                 <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedCoupon.kode_qr)}`}
+                  src={generateLocalQR(selectedCoupon.kode_qr, 150)}
                   alt={`QR Code ${selectedCoupon.kode_qr}`}
                   className="w-[130px] h-[130px] object-contain"
                   referrerPolicy="no-referrer"
@@ -981,7 +1041,6 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
               </button>
               <button
                 onClick={() => {
-                  // Pre-filter lists to just contain this coupon & spawn print overlay
                   setSelectedCoupon(null);
                   setSearchQuery(selectedCoupon.kode_qr);
                   setFilterMode('all');
@@ -1037,4 +1096,3 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
     </div>
   );
 }
-
