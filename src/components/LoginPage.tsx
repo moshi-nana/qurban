@@ -32,6 +32,9 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   // ── Offline / local-sandbox mode (no Supabase configured) ──
   const isOfflineMode = !isSupabaseConfigured;
 
+  // SECURITY FIX: Validate PIN is configured before allowing offline mode
+  const isPinConfigured = OFFLINE_PIN && OFFLINE_PIN.length === 4 && /^\d{4}$/.test(OFFLINE_PIN);
+
   // PIN input handling for offline mode
   const handlePinChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
@@ -56,6 +59,16 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   };
 
   const handlePinSubmit = (digits = pin) => {
+    // SECURITY FIX: Reject if PIN not properly configured
+    if (!isPinConfigured) {
+      setShake(true);
+      setError('PIN belum dikonfigurasi. Hubungi administrator.');
+      setPin(['', '', '', '']);
+      pinRefs[0].current?.focus();
+      setTimeout(() => setShake(false), 600);
+      return;
+    }
+
     const entered = digits.join('');
     if (entered === OFFLINE_PIN) {
       onLoginSuccess({ email: 'lokal@sandbox', id: 'offline', user_metadata: { role: 'admin' } });
@@ -185,6 +198,14 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                   </p>
                 </div>
 
+                {/* SECURITY FIX: Show warning if PIN not configured */}
+                {!isPinConfigured && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 text-center">
+                    <strong>⚠️ PIN Belum Dikonfigurasi</strong>
+                    <p className="mt-1">Hubungi administrator untuk mengatur VITE_OFFLINE_PIN di environment.</p>
+                  </div>
+                )}
+
                 <div
                   className={`flex gap-3 mb-4 transition-transform ${shake ? 'animate-shake' : ''}`}
                 >
@@ -208,6 +229,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                         focus:border-[#F26522] focus:bg-[#fff4ee] focus:scale-105
                       `}
                       autoFocus={i === 0}
+                      disabled={!isPinConfigured}
                     />
                   ))}
                 </div>
@@ -220,13 +242,13 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
 
                 <button
                   onClick={() => handlePinSubmit()}
-                  disabled={pin.join('').length < 4}
-                  className="mt-2 w-full py-3.5 rounded-2xl font-black uppercase tracking-widest text-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed text-white"
+                  disabled={pin.join('').length < 4 || !isPinConfigured}
+                  className="mt-2 w-full py-3.5 rounded-2xl font-black uppercase tracking-widest text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed text-white"
                   style={{
-                    background: pin.join('').length === 4
+                    background: pin.join('').length === 4 && isPinConfigured
                       ? 'linear-gradient(135deg, #F26522 0%, #e05510 100%)'
                       : '#d1d5db',
-                    boxShadow: pin.join('').length === 4 ? '0 4px 20px rgba(242,101,34,0.35)' : 'none',
+                    boxShadow: pin.join('').length === 4 && isPinConfigured ? '0 4px 20px rgba(242,101,34,0.35)' : 'none',
                   }}
                 >
                   Buka Aplikasi
@@ -250,10 +272,9 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                       onChange={(e) => { setEmail(e.target.value); setError(''); }}
                       placeholder="nama@email.com"
                       required
-                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-slate-900 text-sm font-medium outline-none transition-all duration-200 focus:border-[#F26522] focus:bg-white placeholder:text-gray-300"
+                      className="w-full bg-white border border-gray-200 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-[#F26522] focus:ring-2 focus:ring-[#F26522]/10 text-slate-800 transition-all"
                     />
                   </div>
-
                   <div>
                     <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
                       Password
@@ -264,198 +285,101 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                       onChange={(e) => { setPassword(e.target.value); setError(''); }}
                       placeholder="••••••••"
                       required
-                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-slate-900 text-sm font-medium outline-none transition-all duration-200 focus:border-[#F26522] focus:bg-white placeholder:text-gray-300"
+                      className="w-full bg-white border border-gray-200 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-[#F26522] focus:ring-2 focus:ring-[#F26522]/10 text-slate-800 transition-all"
                     />
                   </div>
                 </div>
 
                 {error && (
-                  <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
-                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" className="shrink-0 text-red-500">
-                      <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="2"/>
-                      <path d="M10 6v4M10 14h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                    </svg>
-                    <p className="text-xs text-red-600 font-semibold">{error}</p>
-                  </div>
+                  <p className="text-xs text-red-500 font-semibold text-center animate-pulse">
+                    {error}
+                  </p>
+                )}
+                {info && (
+                  <p className="text-xs text-emerald-600 font-semibold text-center">
+                    {info}
+                  </p>
                 )}
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3.5 rounded-2xl font-black uppercase tracking-widest text-sm text-white transition-all duration-200 disabled:opacity-60 flex items-center justify-center gap-2"
-                  style={{
-                    background: 'linear-gradient(135deg, #F26522 0%, #e05510 100%)',
-                    boxShadow: '0 4px 20px rgba(242,101,34,0.35)',
-                  }}
+                  className="w-full py-3.5 rounded-2xl font-black uppercase tracking-widest text-sm transition-all bg-[#F26522] hover:bg-[#d44e19] text-white shadow-lg shadow-[#F26522]/20 disabled:opacity-40"
                 >
-                  {loading ? (
-                    <>
-                      <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.3"/>
-                        <path d="M12 2a10 10 0 0110 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
-                      </svg>
-                      Memverifikasi…
-                    </>
-                  ) : (
-                    <>
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M3 3a1 1 0 011 1v12a1 1 0 11-2 0V4a1 1 0 011-1zm7.707 3.293a1 1 0 010 1.414L9.414 9H17a1 1 0 110 2H9.414l1.293 1.293a1 1 0 01-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                      Masuk
-                    </>
-                  )}
+                  {loading ? 'Memproses...' : 'Masuk'}
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => { setMode('forgot'); setError(''); setInfo(''); }}
-                  className="w-full text-center text-xs text-gray-400 hover:text-[#F26522] transition-colors font-semibold mt-1"
+                  onClick={() => setMode('forgot')}
+                  className="w-full text-center text-xs text-gray-400 hover:text-[#F26522] font-bold transition-colors"
                 >
-                  Lupa password?
+                  Lupa Password?
                 </button>
               </form>
             ) : (
-              // ── FORGOT PASSWORD MODE ──
+              // ── FORGOT PASSWORD ──
               <form onSubmit={handleForgotPassword} className="space-y-5">
                 <div className="text-center mb-2">
-                  <p className="text-sm text-gray-500 leading-relaxed">
-                    Masukkan email Anda. Kami akan mengirim link reset password.
-                  </p>
+                  <p className="text-sm text-gray-500">Reset password akun Anda</p>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => { setEmail(e.target.value); setError(''); setInfo(''); }}
-                    placeholder="nama@email.com"
-                    required
-                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-slate-900 text-sm font-medium outline-none transition-all duration-200 focus:border-[#F26522] focus:bg-white placeholder:text-gray-300"
-                    autoFocus
-                  />
+                <div className={`space-y-4 transition-transform ${shake ? 'animate-shake' : ''}`}>
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
+                      Email Terdaftar
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                      placeholder="nama@email.com"
+                      required
+                      className="w-full bg-white border border-gray-200 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-[#F26522] focus:ring-2 focus:ring-[#F26522]/10 text-slate-800 transition-all"
+                    />
+                  </div>
                 </div>
 
                 {error && (
-                  <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
-                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" className="shrink-0 text-red-500">
-                      <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="2"/>
-                      <path d="M10 6v4M10 14h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                    </svg>
-                    <p className="text-xs text-red-600 font-semibold">{error}</p>
-                  </div>
+                  <p className="text-xs text-red-500 font-semibold text-center animate-pulse">
+                    {error}
+                  </p>
                 )}
-
                 {info && (
-                  <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
-                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" className="shrink-0 text-emerald-500">
-                      <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="2"/>
-                      <path d="M6 10l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    <p className="text-xs text-emerald-700 font-semibold">{info}</p>
-                  </div>
+                  <p className="text-xs text-emerald-600 font-semibold text-center">
+                    {info}
+                  </p>
                 )}
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3.5 rounded-2xl font-black uppercase tracking-widest text-sm text-white transition-all duration-200 disabled:opacity-60 flex items-center justify-center gap-2"
-                  style={{
-                    background: 'linear-gradient(135deg, #F26522 0%, #e05510 100%)',
-                    boxShadow: '0 4px 20px rgba(242,101,34,0.35)',
-                  }}
+                  className="w-full py-3.5 rounded-2xl font-black uppercase tracking-widest text-sm transition-all bg-[#F26522] hover:bg-[#d44e19] text-white shadow-lg shadow-[#F26522]/20 disabled:opacity-40"
                 >
-                  {loading ? (
-                    <>
-                      <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.3"/>
-                        <path d="M12 2a10 10 0 0110 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
-                      </svg>
-                      Mengirim…
-                    </>
-                  ) : (
-                    'Kirim Link Reset'
-                  )}
+                  {loading ? 'Mengirim...' : 'Kirim Tautan Reset'}
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => { setMode('login'); setError(''); setInfo(''); }}
-                  className="w-full text-center text-xs text-gray-400 hover:text-[#F26522] transition-colors font-semibold"
+                  onClick={() => setMode('login')}
+                  className="w-full text-center text-xs text-gray-400 hover:text-[#F26522] font-bold transition-colors"
                 >
-                  ← Kembali ke login
+                  Kembali ke Login
                 </button>
               </form>
             )}
           </div>
         </div>
-
-        {/* Footer */}
-        <p className="text-center text-[10px] text-gray-400 font-mono tracking-tight mt-6">
-          Sistem Proteksi Enkripsi Hak Klaim Qurban
-        </p>
       </div>
-
-      {/* Shake animation style */}
-      <style>{`
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          20% { transform: translateX(-6px); }
-          40% { transform: translateX(6px); }
-          60% { transform: translateX(-4px); }
-          80% { transform: translateX(4px); }
-        }
-        .animate-shake {
-          animation: shake 0.5s ease-in-out;
-        }
-      `}</style>
     </div>
   );
 }
 
-
 function BackgroundOrnament() {
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-      {/* Top-right blob */}
-      <div
-        className="absolute -top-24 -right-24 w-72 h-72 rounded-full opacity-[0.07]"
-        style={{ background: 'radial-gradient(circle, #F26522 0%, transparent 70%)' }}
-      />
-      {/* Bottom-left blob */}
-      <div
-        className="absolute -bottom-32 -left-20 w-80 h-80 rounded-full opacity-[0.06]"
-        style={{ background: 'radial-gradient(circle, #F26522 0%, transparent 70%)' }}
-      />
-      {/* Subtle dot grid */}
-      <svg
-        className="absolute inset-0 w-full h-full opacity-[0.035]"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <defs>
-          <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-            <circle cx="2" cy="2" r="1.5" fill="#F26522" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#dots)" />
-      </svg>
-      {/* Decorative diagonal lines top-left */}
-      <svg
-        className="absolute top-0 left-0 opacity-[0.04]"
-        width="200" height="200" viewBox="0 0 200 200"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        {[0,20,40,60,80,100,120].map(offset => (
-          <line
-            key={offset}
-            x1={offset} y1="0"
-            x2={offset + 200} y2="200"
-            stroke="#F26522" strokeWidth="1"
-          />
-        ))}
-      </svg>
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      <div className="absolute top-0 left-0 w-64 h-64 bg-[#F26522]/5 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-[#F26522]/5 rounded-full blur-3xl translate-x-1/3 translate-y-1/3" />
     </div>
   );
 }
