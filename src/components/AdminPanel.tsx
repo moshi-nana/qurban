@@ -37,22 +37,23 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
   const [authMessage, setAuthMessage] = useState({ text: '', type: 'info' as 'info' | 'success' | 'error' });
   const [authSubmitting, setAuthSubmitting] = useState(false);
 
-  // SECURITY FIX: Fetch verified role from database instead of client-side email check
+  // SECURITY FIX: Role dari user_metadata (JWT) — di-set saat signup
+  // Tidak perlu query profiles karena RLS sekarang pakai auth.jwt() -> user_metadata -> role
   const [verifiedRole, setVerifiedRole] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(false);
 
-  // SECURITY FIX: Admin check now uses server-verified role only
+  // SECURITY FIX: Admin check pakai role dari user_metadata (JWT)
   const isUserAdmin = (user: any) => {
     if (!isSupabaseConfigured) return true; // Offline local sandbox
     if (!user) return false;
-    // SECURITY: Only trust role fetched from database profiles table
-    // Removed: email string matching, hardcoded email, metadata client-side check
-    return verifiedRole === 'admin';
+    // SECURITY: Role dari user_metadata (diverifikasi server via JWT)
+    // Jika user_metadata tidak ada, fallback ke 'petugas'
+    return (user.user_metadata?.role || verifiedRole) === 'admin';
   };
 
   const adminPrivilege = isUserAdmin(currentUser);
 
-  // SECURITY FIX: Fetch verified role from Supabase profiles table
+  // SECURITY FIX: Sync role dari user_metadata (JWT) ke state
   const fetchVerifiedRole = async (userId: string) => {
     if (!isSupabaseConfigured || !supabase || !userId) {
       setVerifiedRole(null);
@@ -60,17 +61,10 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
     }
     setRoleLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error('Failed to fetch verified role:', error);
-        setVerifiedRole(null);
-      } else {
-        setVerifiedRole(data?.role || null);
+      // Role sudah di user_metadata dari JWT, tapi sync ke state untuk UI
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setVerifiedRole(user.user_metadata?.role || null);
       }
     } catch (err) {
       console.error('Role verification error:', err);

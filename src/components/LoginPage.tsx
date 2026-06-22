@@ -91,7 +91,27 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
       if (authError) throw authError;
-      if (data.user) onLoginSuccess(data.user);
+
+      // SECURITY FIX: Sync role dari profiles ke user_metadata setelah login
+      if (data.user) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profileData?.role) {
+          // Update user_metadata dengan role dari database
+          await supabase.auth.updateUser({
+            data: { role: profileData.role }
+          });
+          // Refresh user data dengan metadata baru
+          const { data: { user: refreshedUser } } = await supabase.auth.getUser();
+          onLoginSuccess(refreshedUser || data.user);
+        } else {
+          onLoginSuccess(data.user);
+        }
+      }
     } catch (err: any) {
       setError(err.message || 'Login gagal. Periksa email dan password.');
       setShake(true);
