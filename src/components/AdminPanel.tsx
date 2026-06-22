@@ -53,7 +53,8 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
 
   const adminPrivilege = isUserAdmin(currentUser);
 
-  // SECURITY FIX: Sync role dari user_metadata (JWT) ke state
+  // SECURITY FIX: Fetch role dari database (bukan hanya user_metadata)
+  // Karena user_metadata bisa outdated/stale
   const fetchVerifiedRole = async (userId: string) => {
     if (!isSupabaseConfigured || !supabase || !userId) {
       setVerifiedRole(null);
@@ -61,10 +62,29 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
     }
     setRoleLoading(true);
     try {
-      // Role sudah di user_metadata dari JWT, tapi sync ke state untuk UI
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setVerifiedRole(user.user_metadata?.role || null);
+      // AMBIL ROLE DARI DATABASE (source of truth)
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Failed to fetch role from database:', error);
+        // Fallback ke user_metadata jika database error
+        const { data: { user } } = await supabase.auth.getUser();
+        setVerifiedRole(user?.user_metadata?.role || null);
+      } else {
+        const dbRole = data?.role || null;
+        setVerifiedRole(dbRole);
+
+        // Sync ke user_metadata jika berbeda
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && user.user_metadata?.role !== dbRole) {
+          await supabase.auth.updateUser({
+            data: { role: dbRole }
+          });
+        }
       }
     } catch (err) {
       console.error('Role verification error:', err);
@@ -73,6 +93,27 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
       setRoleLoading(false);
     }
   };
+
+  // SECURITY: Check admin status real-time dari database
+  const checkAdminStatus = async (): Promise<boolean> => {
+    if (!isSupabaseConfigured || !supabase || !currentUser) return false;
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', currentUser.id)
+        .single();
+      if (error) {
+        console.error('Admin check error:', error);
+        return false;
+      }
+      return data?.role === 'admin';
+    } catch (err) {
+      console.error('Admin check failed:', err);
+      return false;
+    }
+  };
+
 
   // Refresh local list
   const refreshLocalList = async () => {
@@ -226,7 +267,9 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
   };
 
   const generateKuponMassal = async () => {
-    if (!adminPrivilege) {
+    // SECURITY: Re-check admin status saat fungsi dipanggil
+    const isAdmin = await checkAdminStatus();
+    if (!isAdmin) {
       setIsSuccess(false);
       setStatusText("Akses Ditolak: Hanya akun Administrator yang diperbolehkan memproduksi kupon massal.");
       return;
@@ -312,14 +355,11 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
   };
 
   const downloadSistemLokal = async () => {
+    // SEMUA user (admin & petugas) bisa pull data untuk sync ke lokal
+    // Ini penting agar scanner tidak malfunction saat multi-device scan
     setIsSuccess(false);
     if (!isSupabaseConfigured || !supabase) {
       setStatusText('Peringatan: Cloud database belum dihubungkan. Silakan tambahkan variabel lingkungan Supabase.');
-      return;
-    }
-
-    if (!adminPrivilege) {
-      setStatusText('Akses Ditolak: Hanya Administrator yang dapat menarik data.');
       return;
     }
 
@@ -350,7 +390,9 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
   };
 
   const wipeDataKolektif = async () => {
-    if (!adminPrivilege) {
+    // SECURITY: Re-check admin status saat fungsi dipanggil
+    const isAdmin = await checkAdminStatus();
+    if (!isAdmin) {
       setIsSuccess(false);
       setStatusText("Akses Ditolak: Hanya akun Administrator yang diperbolehkan menghapus total data.");
       return;
@@ -825,7 +867,8 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
         </div>
       </div>
 
-      {/* Interactive Coupon Database & QR Card Rendering */}
+      {/* SECURITY: Daftar kupon & QR hanya untuk ADMIN */}
+      {adminPrivilege && (
       <div 
         id="coupon-database-panel"
         className="w-full max-w-md mx-auto bg-white p-5 rounded-2xl border border-gray-200 shadow-sm"
@@ -957,8 +1000,59 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
         )}
       </div>
 
-      {/* Selected Coupon Single QR Modal Overlay */}
-      {selectedCoupon && (
+      )}
+
+      {/* ============================================ */}
+      {/* PANEL SCANNER / PETUGAS — HANYA PULL DATA */}
+      {/* ============================================ */}
+      {!adminPrivilege && isSupabaseConfigured && (
+        <div className="w-full max-w-md mx-auto bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+          <div className="flex items-center gap-2 mb-4 border-b border-gray-150 pb-2">
+            <Download className="text-[#F26522]" size={18} />
+            <span className="text-base font-bold text-slate-800 tracking-tight">Sinkronisasi Data</span>
+          </div>
+
+          <div className="space-y-4">
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Tarik data terbaru dari server untuk memastikan data kupon lokal Anda selalu up-to-date.
+              Penting saat multiple scanner bekerja bersamaan.
+            </p>
+
+            <button
+              id="btn-pull-scanner"
+              disabled={loading || pulling}
+              onClick={downloadSistemLokal}
+              className="w-full flex items-center justify-center gap-2 border border-gray-200 hover:border-[#F26522]/30 hover:bg-gray-50 bg-white px-3 py-2.5 rounded-md text-xs font-semibold tracking-tight transition-colors disabled:opacity-45 text-gray-700 shadow-sm"
+            >
+              {pulling ? (
+                <>
+                  <Loader2 size={14} className="animate-spin text-[#F26522]" />
+                  <span>Menarik Data...</span>
+                </>
+              ) : (
+                <>
+                  <Download size={14} />
+                  <span>Pull Server ke Lokal</span>
+                </>
+              )}
+            </button>
+
+            {statusText && (
+              <div className={`p-3 rounded border text-center text-xs font-mono flex items-center justify-center gap-2 ${
+                isSuccess 
+                  ? 'bg-emerald-50 border-emerald-250 text-emerald-800' 
+                  : 'bg-gray-50 border-gray-200 text-gray-500'
+              }`}>
+                {isSuccess ? <CheckCircle size={14} className="shrink-0 text-emerald-600" /> : <Database size={14} className="shrink-0 text-slate-500" />}
+                <span>{statusText}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Selected Coupon Single QR Modal Overlay — ADMIN ONLY */}
+      {adminPrivilege && selectedCoupon && (
         <div 
           id="single-coupon-preview-overlay"
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
@@ -1049,8 +1143,8 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
         </div>
       )}
 
-      {/* Reset Confirmation Modal Overlay */}
-      {showConfirmReset && (
+      {/* Reset Confirmation Modal Overlay — ADMIN ONLY */}
+      {adminPrivilege && showConfirmReset && (
         <div 
           id="reset-confirmation-overlay"
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 text-slate-800 animate-fade-in"
