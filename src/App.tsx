@@ -23,10 +23,41 @@ export default function App() {
       setAuthChecked(true);
       return;
     }
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) setCurrentUser(data.session.user);
-      setAuthChecked(true);
-    });
+
+    // SECURITY FIX: Restore session + sync role dari profiles ke user_metadata
+    const restoreSession = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.user) {
+          const user = data.session.user;
+
+          // Sync role dari profiles ke user_metadata
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+
+          if (profileData?.role && user.user_metadata?.role !== profileData.role) {
+            await supabase.auth.updateUser({
+              data: { role: profileData.role }
+            });
+            // Refresh user dengan metadata baru
+            const { data: { user: refreshedUser } } = await supabase.auth.getUser();
+            setCurrentUser(refreshedUser || user);
+          } else {
+            setCurrentUser(user);
+          }
+        }
+      } catch (err) {
+        console.error('Session restore error:', err);
+      } finally {
+        setAuthChecked(true);
+      }
+    };
+
+    restoreSession();
+
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setCurrentUser(session?.user ?? null);
     });
