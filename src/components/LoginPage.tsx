@@ -183,7 +183,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
           {/* Full-width logo banner */}
           <div className="flex flex-col items-center justify-center py-6 px-8 border-b border-gray-100 bg-gradient-to-b from-white to-gray-50">
             <img
-              src="/logo.png"
+              src={`${import.meta.env.BASE_URL}logo.png`}
               alt="Logo Qurban"
               className="h-24 object-contain drop-shadow-sm"
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}

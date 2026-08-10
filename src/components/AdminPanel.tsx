@@ -5,9 +5,10 @@ import { Trash2, Download, Layers, ShieldAlert, CheckCircle, Database, Search, Q
 
 interface AdminPanelProps {
   onDataUpdated: () => void;
+  user?: any;
 }
 
-export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
+export default function AdminPanel({ onDataUpdated, user }: AdminPanelProps) {
   const [jumlahKupon, setJumlahKupon] = useState(100);
   const [loading, setLoading] = useState(false);
   const [pulling, setPulling] = useState(false);
@@ -29,8 +30,10 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
   const itemsPerPage = 8;
 
   // Supabase Authentication States
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  // App.tsx udah gate login sebelum panel ini mount, jadi pake `user` prop
+  // sebagai source of truth awal — hindari race/flash re-fetch session sendiri.
+  const [currentUser, setCurrentUser] = useState<any>(user ?? null);
+  const [authLoading, setAuthLoading] = useState(!user);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authMode, setAuthMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
@@ -129,21 +132,27 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
     refreshLocalList();
 
     if (isSupabaseConfigured && supabase) {
-      // Check for current session
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        const user = session?.user ?? null;
-        setCurrentUser(user);
-        if (user) {
-          fetchVerifiedRole(user.id);
-        } else {
+      if (user) {
+        // Sudah punya user dari App.tsx (source of truth) — langsung verifikasi role,
+        // gak perlu getSession ulang.
+        fetchVerifiedRole(user.id);
+      } else {
+        // Fallback: panel dipakai berdiri sendiri tanpa gate App.tsx (mis. testing).
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          const sessionUser = session?.user ?? null;
+          setCurrentUser(sessionUser);
+          if (sessionUser) {
+            fetchVerifiedRole(sessionUser.id);
+          } else {
+            setAuthLoading(false);
+          }
+        }).catch(err => {
+          console.error("Auth session fetch error:", err);
           setAuthLoading(false);
-        }
-      }).catch(err => {
-        console.error("Auth session fetch error:", err);
-        setAuthLoading(false);
-      });
+        });
+      }
 
-      // Maintain user state dynamically
+      // Maintain user state dynamically (logout dari App.tsx ikut ke-sync ke sini)
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         const user = session?.user ?? null;
         setCurrentUser(user);
@@ -802,14 +811,12 @@ export default function AdminPanel({ onDataUpdated }: AdminPanelProps) {
           <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
             <button
               id="btn-pull-cloud"
-              disabled={loading || pulling || !isSupabaseConfigured || !adminPrivilege}
+              disabled={loading || pulling || !isSupabaseConfigured}
               onClick={downloadSistemLokal}
               title={
                 !isSupabaseConfigured 
                   ? "Database cloud tidak terkonfigurasi" 
-                  : !adminPrivilege 
-                    ? "Hanya akun Administrator yang dapat menarik data" 
-                    : "Tarik data dari database online"
+                  : "Tarik data dari database online"
               }
               className="flex items-center justify-center gap-2 border border-gray-200 hover:border-[#F26522]/30 hover:bg-gray-50 bg-white px-3 py-2.5 rounded-md text-xs font-semibold tracking-tight transition-colors disabled:opacity-45 disabled:cursor-not-allowed text-gray-700 shadow-sm"
             >
