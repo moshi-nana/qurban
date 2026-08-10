@@ -255,6 +255,7 @@ export default function App() {
           {showAdmin ? (
             <AdminPanel 
               onDataUpdated={triggerSyncAndRecalculate} 
+              user={currentUser}
             />
           ) : (
             <Scanner triggerSyncCheck={triggerSyncAndRecalculate} />
