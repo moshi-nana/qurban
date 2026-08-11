@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { getKuponLokal, updateKuponLokalStatus } from '../lib/indexedDB';
-import { CheckCircle, XCircle, Camera, Keyboard, AlertTriangle, Loader2, Zap, ZapOff } from 'lucide-react';
+import { CheckCircle, XCircle, Camera, AlertTriangle, Loader2, Zap, ZapOff } from 'lucide-react';
 
 interface ScannerProps {
   triggerSyncCheck: () => void;
@@ -16,8 +16,6 @@ interface ScanResultState {
 export default function Scanner({ triggerSyncCheck }: ScannerProps) {
   const [scanResult, setScanResult] = useState<ScanResultState | null>(null);
   const [errorLog, setErrorLog] = useState<string | null>(null);
-  const [manualCode, setManualCode] = useState('');
-  const [activeTab, setActiveTab] = useState<'camera' | 'manual'>('camera');
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isCameraStarting, setIsCameraStarting] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
@@ -77,7 +75,7 @@ export default function Scanner({ triggerSyncCheck }: ScannerProps) {
   }, [hasOpenResultModal]);
 
   useEffect(() => {
-    if (activeTab !== 'camera' || !isCameraActive) {
+    if (!isCameraActive) {
       return;
     }
 
@@ -174,7 +172,7 @@ export default function Scanner({ triggerSyncCheck }: ScannerProps) {
           });
       }
     };
-  }, [activeTab, isCameraActive]);
+  }, [isCameraActive]);
 
   const toggleTorch = async () => {
     const instance = html5QrCodeRef.current;
@@ -188,58 +186,15 @@ export default function Scanner({ triggerSyncCheck }: ScannerProps) {
     }
   };
 
-  const handeManualSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const finalCode = manualCode.trim().toUpperCase();
-    if (!finalCode) return;
-    prosesKupon(finalCode);
-    setManualCode('');
-  };
-
   return (
     <div 
       id="scanner-card"
       className="w-full max-w-md mx-auto bg-white p-6 rounded-2xl border border-gray-200 shadow-sm"
     >
-      {/* Tab Switcher */}
-      <div 
-        id="scanner-tab-container"
-        className="flex border-b border-gray-100 mb-5"
-      >
-        <button
-          id="btn-tab-camera"
-          onClick={() => setActiveTab('camera')}
-          className={`flex-1 pb-3 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-all ${
-            activeTab === 'camera' 
-              ? 'border-[#F26522] text-[#F26522] bg-[#F26522]/5' 
-              : 'border-transparent text-gray-400 hover:text-gray-700'
-          }`}
-        >
-          <Camera size={16} />
-          Kamera Pemindai
-        </button>
-        <button
-          id="btn-tab-manual"
-          onClick={() => {
-            setActiveTab('manual');
-            setScanResult(null);
-          }}
-          className={`flex-1 pb-3 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-all ${
-            activeTab === 'manual' 
-              ? 'border-[#F26522] text-[#F26522] bg-[#F26522]/5' 
-              : 'border-transparent text-gray-400 hover:text-gray-700'
-          }`}
-        >
-          <Keyboard size={16} />
-          Input Manual
-        </button>
-      </div>
-
-      {activeTab === 'camera' ? (
-        <div id="camera-section">
-          <div className="w-full flex justify-between items-center mb-3.5">
-            <span className="text-xs font-bold text-gray-500 px-3 py-1 bg-gray-50 rounded-full border border-gray-150 font-mono flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full ${isCameraActive ? 'bg-[#F26522] animate-pulse' : 'bg-rose-500'}`}></span>
+      <div id="camera-section">
+        <div className="w-full flex justify-between items-center mb-3.5">
+          <span className="text-xs font-bold text-gray-500 px-3 py-1 bg-gray-50 rounded-full border border-gray-150 font-mono flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${isCameraActive ? 'bg-[#F26522] animate-pulse' : 'bg-rose-500'}`}></span>
               {isCameraActive ? (isCameraStarting ? 'MEMBUKA KAMERA...' : 'KAMERA AKTIF') : 'KAMERA MATI'}
             </span>
             {isCameraActive && torchSupported && (
@@ -312,37 +267,6 @@ export default function Scanner({ triggerSyncCheck }: ScannerProps) {
             </div>
           )}
         </div>
-      ) : (
-        <form 
-          id="manual-form"
-          onSubmit={handeManualSubmit} 
-          className="space-y-4"
-        >
-          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200/80 flex flex-col gap-2">
-            <label className="block text-xs font-bold text-gray-500">
-              MASUKKAN KODE KUPON SECARA MANUAL
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="input-manual-code"
-                type="text"
-                value={manualCode}
-                onChange={(e) => setManualCode(e.target.value)}
-                placeholder="CONTOH: QB-RZ-0A7U9E"
-                className="flex-1 bg-white border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[#F26522] text-slate-800 uppercase font-mono tracking-wider shadow-sm"
-              />
-              <button
-                id="btn-manual-submit"
-                type="submit"
-                className="bg-[#F26522] hover:bg-[#d44e19] text-white font-bold px-4 py-2 rounded-md text-sm transition-colors shadow-sm"
-                disabled={!manualCode.trim()}
-              >
-                Proses
-              </button>
-            </div>
-          </div>
-        </form>
-      )}
 
       {errorLog && (
         <div 
