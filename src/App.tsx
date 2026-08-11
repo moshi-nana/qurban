@@ -164,15 +164,16 @@ export default function App() {
   return (
     <div id="app-root-container" className="min-h-screen bg-slate-50 text-slate-800 flex flex-col justify-between selection:bg-[#F26522] selection:text-white">
       <div>
-        <StatusBanner 
-          isOnline={isOnline} 
-          queueCount={queueCount} 
-          isSupabaseConfigured={isSupabaseConfigured} 
-        />
-        
         <header id="header-bar" className="relative p-4 bg-white border-b border-gray-200 flex items-center justify-between shadow-sm min-h-[72px]">
           {/* Left: Direct Logo link pointing to /logo.png with dynamic fallback to SVG */}
           <div id="logo-icon" className="relative flex items-center justify-center z-10 shrink-0">
+            <div className="absolute top-1 right-1 z-20">
+              <StatusBanner 
+                isOnline={isOnline} 
+                queueCount={queueCount} 
+                isSupabaseConfigured={isSupabaseConfigured} 
+              />
+            </div>
             {!logoError ? (
               <img 
                 id="logo-image-render"
